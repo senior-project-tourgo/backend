@@ -11,8 +11,11 @@ const router = express.Router();
  * @access  Public
  */
 router.post('/register', async (req, res) => {
+
+
     try {
         const { name, username, identifier, password } = req.body;
+
 
         // Validation: Check required fields
         if (!name || !username || !identifier || !password) {
@@ -70,6 +73,8 @@ router.post('/register', async (req, res) => {
         // Create and save new user
         const user = new User(userData);
         await user.save();
+
+        console.log("Registration success for", user.username);
 
         // Generate JWT token
         const token = generateToken({
@@ -160,6 +165,8 @@ router.post('/login', async (req, res) => {
             userId: user._id.toString(),
             username: user.username,
         });
+
+        console.log("Made token", token);
 
         // Send response
         res.status(200).json({
