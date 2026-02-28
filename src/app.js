@@ -5,6 +5,7 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
+const recommendRoutes = require("./routes/recommend");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/recommend", recommendRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
