@@ -1,31 +1,42 @@
-const express = require("express");
-const Place = require("../models/place");
+const mongoose = require("mongoose");
 
-const router = express.Router();
-
-router.post("/", async (req, res) => {
-    try {
-        const mood = req.body.mood?.toLowerCase();
-        const budget = Number(req.body.budget);
-        const numberOfPeople = Number(req.body.numberOfPeople);
-
-        if (!mood || !budget || !numberOfPeople) {
-            return res.status(400).json({ message: "Missing filters" });
+const placeSchema = new mongoose.Schema({
+    placeId: { type: String, required: true, unique: true },
+    placeName: { type: String, required: true },
+    promotions: [String],
+    image: String,
+    location: {
+        area: String,
+        lat: Number,
+        lng: Number
+    },
+    mapsLinkKey: String,
+    averageRating: Number,
+    priceRange: String,
+    openingHours: {
+        monday: [{ open: String, close: String }],
+        tuesday: [{ open: String, close: String }],
+        wednesday: [{ open: String, close: String }],
+        thursday: [{ open: String, close: String }],
+        friday: [{ open: String, close: String }],
+        saturday: [{ open: String, close: String }],
+        sunday: [{ open: String, close: String }]
+    },
+    isActive: Boolean,
+    typicalTimeSpent: String,
+    vibe: [String],
+    specialFacilities: [String],
+    contactNumber: String,
+    socialMedia: {
+        instagram: {
+            handle: String,
+            likes: Number
+        },
+        facebook: {
+            page: String,
+            likes: Number
         }
-
-        const places = await Place.find({
-            moodTags: mood,
-            minBudget: { $lte: budget },
-            maxBudget: { $gte: budget },
-            minPeople: { $lte: numberOfPeople },
-            maxPeople: { $gte: numberOfPeople }
-        }).sort({ rating: -1 });
-
-        res.json(places);
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
     }
-});
+}, { timestamps: true });
 
-module.exports = router;
+module.exports = mongoose.model("Place", placeSchema);

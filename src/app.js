@@ -6,6 +6,8 @@ const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
 const recommendRoutes = require("./routes/recommend");
+const placesRouter = require('./routes/getallplaces');
+
 
 const app = express();
 
@@ -17,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/recommend", recommendRoutes);
+app.use('/api/places', placesRouter);
 
 // Health check route
 app.get("/health", (req, res) => {
