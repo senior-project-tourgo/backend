@@ -32,6 +32,7 @@ const authenticate = (req, res, next) => {
 
         // Attach user data to request
         req.user = decoded;
+        console.log("Decoded user data:", req.user);
 
         // Continue to next middleware/route handler
         next();

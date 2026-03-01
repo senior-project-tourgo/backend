@@ -1,32 +1,62 @@
 const express = require("express");
-const Pl = require("../models/place");
-const authMiddleware = require("../middleware/auth.middleware");
-
 const router = express.Router();
+const Place = require("../models/place");
 
-// Create SME (protected)
-
-router.post("/recommend", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const mood = req.body.mood?.toLowerCase();
-    const budget = Number(req.body.budget);
-    const numberOfPeople = Number(req.body.numberOfPeople);
-    if (!mood || !budget || !numberOfPeople) {
-      return res.status(400).json({ message: "Missing filters" });
-    }
+    const { area, vibes, numberOfPlaces } = req.body;
 
+    console.log("Vibes received:", vibes);
+    console.log("Area chosen", area);
+    console.log("Number of places", numberOfPlaces);
+    // Step 1: filter by area & active
     const places = await Place.find({
-      moodTags: mood,
-      minBudget: { $lte: budget },
-      maxBudget: { $gte: budget },
-      minPeople: { $lte: numberOfPeople },
-      maxPeople: { $gte: numberOfPeople }
-    }).sort({ rating: -1 }); // highest rated first
+      "location.area": area,
+      isActive: true
+    });
 
-    res.json(places);
+    // Step 2: scoring
+    const scored = places.map(place => {
+      let score = 0;
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+      // vibe matching
+      if (place.vibe && vibes) {
+        const matchCount = place.vibe.filter(v =>
+          vibes.includes(v)
+        ).length;
+
+        score += matchCount * 3;
+      }
+      // rating boost
+      score += (place.averageRating || 0);
+
+      return { ...place.toObject(), score };
+    });
+
+    // Step 3: sort by score
+    scored.sort((a, b) => b.score - a.score);
+
+    console.log("Scored places:", scored);
+    // Step 4: limit
+    const recommended = scored.slice(0, numberOfPlaces);
+
+    // calculate average budget
+    const budgetMap = { "$": 1, "$$": 2, "$$$": 3, "$$$$": 4 };
+
+    const avgBudget =
+      recommended.reduce(
+        (sum, p) => sum + (budgetMap[p.priceRange] || 1),
+        0
+      ) / (recommended.length || 1);
+
+    res.json({
+      recommendedPlaces: recommended,
+      averageBudgetLevel: avgBudget.toFixed(1)
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Recommendation failed" });
   }
 });
 
