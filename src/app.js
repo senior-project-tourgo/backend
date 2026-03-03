@@ -1,13 +1,15 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('../swagger');
 
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
 const recommendRoutes = require("./routes/recommend");
 const placesRouter = require('./routes/getallplaces');
-const tripRoutes = require("./routes/trip");
+const tripRoutes = require("./routes/trips");
 
 const app = express();
 
@@ -15,6 +17,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+        persistAuthorization: true
+    }
+}));
 
 // Routes
 app.use("/api/auth", authRoutes);

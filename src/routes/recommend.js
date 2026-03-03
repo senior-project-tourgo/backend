@@ -2,6 +2,64 @@ const express = require("express");
 const router = express.Router();
 const Place = require("../models/place");
 
+/**
+ * @swagger
+ * /api/recommend:
+ *   post:
+ *     summary: Get place recommendations
+ *     description: Get recommended places based on area, vibes, and number of places
+ *     tags:
+ *       - Recommendations
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - area
+ *               - numberOfPlaces
+ *             properties:
+ *               area:
+ *                 type: string
+ *                 example: Paris
+ *               vibes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of vibes/tags to match places
+ *                 example: ['historic', 'romantic']
+ *               numberOfPlaces:
+ *                 type: integer
+ *                 example: 5
+ *     responses:
+ *       200:
+ *         description: Recommended places with average budget level
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 recommendedPlaces:
+ *                   type: array
+ *                   items:
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/Place'
+ *                       - type: object
+ *                         properties:
+ *                           score:
+ *                             type: number
+ *                             example: 15.5
+ *                 averageBudgetLevel:
+ *                   type: string
+ *                   example: "2.3"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post("/", async (req, res) => {
   try {
     const { area, vibes, numberOfPlaces } = req.body;
