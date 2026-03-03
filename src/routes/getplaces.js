@@ -4,7 +4,7 @@ const Place = require('../models/place');
 
 /**
  * @swagger
- * /api/places:
+ * /api/places/get-all-places:
  *   get:
  *     summary: Get all places
  *     description: Retrieve a paginated list of places with optional filtering
@@ -49,7 +49,7 @@ const Place = require('../models/place');
  *                   type: string
  */
 // GET all places
-router.get("/", async (req, res) => {
+router.get("/get-all-places", async (req, res) => {
     try {
         const { active, limit = 10, page = 1 } = req.query;
 
@@ -72,5 +72,54 @@ router.get("/", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+//get one place based on id
+
+
+/**
+ * @swagger
+ * /api/get-places/{placeId}:
+ *   get:
+ *     summary: Get a single place by placeId
+ *     tags: [Places]
+ *     parameters:
+ *       - in: path
+ *         name: placeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Unique identifier of the place
+ *         example: central-world
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved place details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Place'
+ *       404:
+ *         description: Place not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Place not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/get-places/:placeId", async (req, res) => {
+    const place = await Place.findOne({
+        placeId: req.params.placeId,
+        isActive: true   // business rule
+    });
+
+    if (!place) return res.status(404).json({ message: "Not found" });
+
+    res.json(place);
+});
+
 
 module.exports = router;

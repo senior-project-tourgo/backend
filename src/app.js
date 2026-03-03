@@ -8,7 +8,7 @@ const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
 const recommendRoutes = require("./routes/recommend");
-const placesRouter = require('./routes/getallplaces');
+const placesRouter = require('./routes/getplaces');
 const tripRoutes = require("./routes/trips");
 
 const app = express();
