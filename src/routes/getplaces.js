@@ -122,4 +122,22 @@ router.get("/get-places/:placeId", async (req, res) => {
 });
 
 
+/**
+ * GET /api/places/search?q=<text>&limit=20
+ * Case-insensitive name search on active places.
+ */
+router.get("/search", async (req, res) => {
+    try {
+        const { q = '', limit = 20 } = req.query;
+        const filter = { isActive: true };
+        if (q.trim()) {
+            filter.placeName = { $regex: q.trim(), $options: 'i' };
+        }
+        const places = await Place.find(filter).limit(parseInt(limit));
+        res.json(places);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -3,13 +3,15 @@ const cors = require("cors");
 require("dotenv").config();
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('../swagger');
-
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
 const recommendRoutes = require("./routes/recommend");
 const placesRouter = require('./routes/getplaces');
 const tripRoutes = require("./routes/trips");
+const userRoutes = require("./routes/user");
+const promotionRoutes = require("./routes/promotions");
+const rewardRoutes = require("./routes/rewards");
 
 const app = express();
 
@@ -30,6 +32,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/recommend", recommendRoutes);
 app.use('/api/places', placesRouter);
 app.use("/api/trips", tripRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/promotions", promotionRoutes);
+app.use("/api/rewards", rewardRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {

@@ -1,42 +1,47 @@
 const mongoose = require("mongoose");
 
+const openingSlotSchema = { open: String, close: String };
+
 const placeSchema = new mongoose.Schema({
     placeId: { type: String, required: true, unique: true },
     placeName: { type: String, required: true },
-    promotions: [String],
+    // References to Promotion documents
+    promotions: [{ type: String, ref: 'Promotion' }],
     image: String,
     location: {
-        area: String,
+        area: {
+            type: String,
+            enum: ['Kathmandu', 'Pokhara', 'Bhaktapur', 'Lalitpur'],
+        },
         lat: Number,
-        lng: Number
+        lng: Number,
     },
     mapsLinkKey: String,
-    averageRating: Number,
-    priceRange: String,
-    openingHours: {
-        monday: [{ open: String, close: String }],
-        tuesday: [{ open: String, close: String }],
-        wednesday: [{ open: String, close: String }],
-        thursday: [{ open: String, close: String }],
-        friday: [{ open: String, close: String }],
-        saturday: [{ open: String, close: String }],
-        sunday: [{ open: String, close: String }]
+    averageRating: { type: Number, default: 0 },
+    priceRange: {
+        type: String,
+        enum: ['$', '$$', '$$$', '$$$$'],
     },
-    isActive: Boolean,
+    openingHours: {
+        monday:    [openingSlotSchema],
+        tuesday:   [openingSlotSchema],
+        wednesday: [openingSlotSchema],
+        thursday:  [openingSlotSchema],
+        friday:    [openingSlotSchema],
+        saturday:  [openingSlotSchema],
+        sunday:    [openingSlotSchema],
+    },
+    isActive: { type: Boolean, default: true },
     typicalTimeSpent: String,
     vibe: [String],
     specialFacilities: [String],
     contactNumber: String,
     socialMedia: {
-        instagram: {
-            handle: String,
-            likes: Number
-        },
-        facebook: {
-            page: String,
-            likes: Number
-        }
-    }
+        instagram: { handle: String, likes: { type: Number, default: 0 } },
+        facebook:  { page: String,   likes: { type: Number, default: 0 } },
+        tiktok:    { handle: String, likes: { type: Number, default: 0 } },
+        whatsapp:  { number: String },
+    },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Place", placeSchema);

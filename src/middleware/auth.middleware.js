@@ -30,8 +30,13 @@ const authenticate = (req, res, next) => {
             });
         }
 
-        // Attach user data to request
+        // Attach user data to request.
+        // Normalise to _id so all route handlers can use req.user._id
+        // regardless of whether the JWT payload uses 'userId' or '_id'.
         req.user = decoded;
+        if (!req.user._id && req.user.userId) {
+            req.user._id = req.user.userId;
+        }
         // Continue to next middleware/route handler
         next();
     } catch (error) {

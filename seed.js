@@ -1,6 +1,9 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const Place = require("./src/models/place.js");
+const Vibe = require("./src/models/vibe.js");
+const Promotion = require("./src/models/promotion.js");
+const Reward = require("./src/models/reward.js");
 
 mongoose.connect(process.env.MONGODB_URI);
 
@@ -16,7 +19,10 @@ const defaultHours = {
 
 async function seed() {
     try {
-        await Place.deleteMany(); // optional reset
+        await Place.deleteMany();
+        await Vibe.deleteMany();
+        await Promotion.deleteMany();
+        await Reward.deleteMany();
 
         await Place.insertMany([
             // ================= KATHMANDU =================
@@ -271,6 +277,94 @@ async function seed() {
                 contactNumber: null,
                 socialMedia: {}
             }
+        ]);
+
+        // ================= VIBES =================
+        await Vibe.insertMany([
+            { vibeId: 'spiritual',  vibeTitle: 'Spiritual',   image: 'https://images.unsplash.com/photo-1609898793184-7d1496532e84?w=400' },
+            { vibeId: 'heritage',   vibeTitle: 'Heritage',    image: 'https://images.unsplash.com/photo-1618851142562-ff30d09313a9?w=400' },
+            { vibeId: 'foodie',     vibeTitle: 'Foodie',      image: 'https://images.unsplash.com/photo-1761124740110-8989d68fafab?w=400' },
+            { vibeId: 'trekking',   vibeTitle: 'Trekking',    image: 'https://images.unsplash.com/photo-1742311312069-ceb2afe8bda9?w=400' },
+            { vibeId: 'mountain',   vibeTitle: 'Mountain',    image: 'https://images.unsplash.com/photo-1621910038795-50fc31d3c491?w=400' },
+            { vibeId: 'viewpoint',  vibeTitle: 'Viewpoint',   image: 'https://images.unsplash.com/photo-1631968494896-2c12666aa224?w=400' },
+            { vibeId: 'lakeside',   vibeTitle: 'Lakeside',    image: 'https://images.unsplash.com/photo-1576948187290-457c015b3bff?w=400' },
+        ]);
+
+        // ================= PROMOTIONS =================
+        const now = new Date();
+        const threeMonths = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+
+        await Promotion.insertMany([
+            {
+                promotionId: 'promo_001',
+                promotionName: '20% Off Sarangkot Paragliding',
+                placeId: 'plc_007',
+                discountType: 'percentage',
+                discountValue: 20,
+                description: 'Book a paragliding session and get 20% off on weekdays.',
+                startDate: now,
+                endDate: threeMonths,
+                usageLimit: 100,
+                isActive: true,
+            },
+            {
+                promotionId: 'promo_002',
+                promotionName: 'Free Boat Ride on Phewa Lake',
+                placeId: 'plc_006',
+                discountType: 'freebie',
+                discountValue: 0,
+                description: 'Get a complimentary 30-minute boat ride with any lakeside package.',
+                startDate: now,
+                endDate: threeMonths,
+                usageLimit: 50,
+                isActive: true,
+            },
+            {
+                promotionId: 'promo_003',
+                promotionName: 'Rs. 200 Off Newari Food Experience',
+                placeId: 'plc_014',
+                discountType: 'fixed',
+                discountValue: 200,
+                description: 'Save Rs. 200 on your first traditional Newari meal booking.',
+                startDate: now,
+                endDate: threeMonths,
+                usageLimit: null,
+                isActive: true,
+            },
+        ]);
+
+        // ================= REWARDS =================
+        await Reward.insertMany([
+            {
+                rewardId: 'rwd_001',
+                title: 'Explorer Discount Badge',
+                description: 'Unlock a 10% discount at partner restaurants once you reach Explorer tier.',
+                xpCost: 100,
+                rewardType: 'discount',
+                promotionId: null,
+                isActive: true,
+                expiresAt: null,
+            },
+            {
+                rewardId: 'rwd_002',
+                title: 'Free Paragliding Session',
+                description: 'Redeem 500 XP for a free tandem paragliding session at Sarangkot.',
+                xpCost: 500,
+                rewardType: 'freebie',
+                promotionId: 'promo_001',
+                isActive: true,
+                expiresAt: threeMonths,
+            },
+            {
+                rewardId: 'rwd_003',
+                title: 'Legend Exclusive Access',
+                description: 'Legend-tier travellers get early access to new place listings and exclusive guided tours.',
+                xpCost: 1000,
+                rewardType: 'exclusive_access',
+                promotionId: null,
+                isActive: true,
+                expiresAt: null,
+            },
         ]);
 
         console.log("Database seeded successfully!");
