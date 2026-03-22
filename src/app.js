@@ -12,6 +12,7 @@ const tripRoutes = require("./routes/trips");
 const userRoutes = require("./routes/user");
 const promotionRoutes = require("./routes/promotions");
 const rewardRoutes = require("./routes/rewards");
+const directionsRoutes = require("./routes/directions");
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/trips", tripRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/rewards", rewardRoutes);
+app.use("/api/directions", directionsRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
