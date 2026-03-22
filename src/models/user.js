@@ -77,6 +77,17 @@ const UserSchema = new mongoose.Schema(
             enum: ['Newcomer', 'Explorer', 'Adventurer', 'Legend'],
             default: 'Newcomer',
         },
+        // Stamp card — one entry per unique place visited
+        stamps: {
+            type: [
+                {
+                    placeId: { type: String, required: true },
+                    visitCount: { type: Number, default: 1 },
+                    lastVisitedAt: { type: Date, default: Date.now },
+                },
+            ],
+            default: [],
+        },
     },
     {
         timestamps: true,

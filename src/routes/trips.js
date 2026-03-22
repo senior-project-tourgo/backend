@@ -160,6 +160,19 @@ router.patch("/:tripId/checkin", authenticate, async (req, res) => {
         );
         // Recompute badge
         user.badge = user.computeBadge();
+
+        // Update stamp card
+        const existingStamp = user.stamps.find((s) => s.placeId === placeId);
+        let stampResult;
+        if (existingStamp) {
+            existingStamp.visitCount += 1;
+            existingStamp.lastVisitedAt = new Date();
+            stampResult = { placeId, visitCount: existingStamp.visitCount, isNew: false };
+        } else {
+            user.stamps.push({ placeId, visitCount: 1, lastVisitedAt: new Date() });
+            stampResult = { placeId, visitCount: 1, isNew: true };
+        }
+
         await user.save();
 
         // Update UserVibe scores for this place's vibes
@@ -179,6 +192,7 @@ router.patch("/:tripId/checkin", authenticate, async (req, res) => {
             xpEarned: XP_CHECKIN,
             totalXp: user.xp,
             badge: user.badge,
+            stamp: stampResult,
         });
     } catch (err) {
         console.error(err);
