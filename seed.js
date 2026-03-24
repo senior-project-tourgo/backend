@@ -31,6 +31,26 @@ async function seed() {
 
         console.log("⬆️ Uploading images to Cloudinary...");
 
+        // ── Vibe catalogue ──────────────────────────────────────────────────────
+        const vibesData = [
+            { vibeId: 'thrill',   vibeTitle: 'Thrill Seeker',    image: null },
+            { vibeId: 'mountain', vibeTitle: 'Mountain Lover',   image: null },
+            { vibeId: 'spiritual',vibeTitle: 'Spiritual',        image: null },
+            { vibeId: 'culture',  vibeTitle: 'Culture',          image: null },
+            { vibeId: 'nature',   vibeTitle: 'Nature',           image: null },
+            { vibeId: 'foodie',   vibeTitle: 'Foodie',           image: null },
+            { vibeId: 'chill',    vibeTitle: 'Chill',            image: null },
+            { vibeId: 'social',   vibeTitle: 'Social',           image: null },
+            { vibeId: 'photo',    vibeTitle: 'Photo Hunter',     image: null },
+            { vibeId: 'budget',   vibeTitle: 'Budget Friendly',  image: null },
+            { vibeId: 'luxury',   vibeTitle: 'Luxury',           image: null },
+            { vibeId: 'family',   vibeTitle: 'Family Fun',       image: null },
+            { vibeId: 'romantic', vibeTitle: 'Romantic',         image: null },
+            { vibeId: 'solo',     vibeTitle: 'Solo Traveler',    image: null },
+            { vibeId: 'offbeat',  vibeTitle: 'Off the Beat',     image: null },
+            { vibeId: 'wellness', vibeTitle: 'Wellness',         image: null },
+        ];
+
         const placesData = [
             {
                 placeId: 'plc_001',
@@ -44,7 +64,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '1–2 hours',
-                vibe: ['spiritual', 'viewpoint', 'heritage'],
+                vibe: ['spiritual', 'photo', 'culture'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school', 'elderly'],
                 specialFacilities: ['Panoramic valley view'],
                 contactNumber: null,
                 socialMedia: {}
@@ -61,7 +82,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '1–2 hours',
-                vibe: ['spiritual', 'heritage'],
+                vibe: ['spiritual', 'culture', 'photo'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school', 'elderly', 'accessibility'],
                 specialFacilities: ['Prayer wheels'],
                 contactNumber: null,
                 socialMedia: {}
@@ -78,12 +100,12 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2 hours',
-                vibe: ['foodie'],
+                vibe: ['foodie', 'budget', 'culture'],
+                suitableFor: ['solo', 'couple', 'friends', 'family', 'school'],
                 specialFacilities: ['Local guide'],
                 contactNumber: null,
                 socialMedia: {}
             },
-
             {
                 placeId: 'plc_004',
                 placeName: 'Champadevi Hiking Trail',
@@ -96,7 +118,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '3–4 hours',
-                vibe: ['trekking', 'mountain', 'viewpoint'],
+                vibe: ['mountain', 'thrill', 'photo'],
+                suitableFor: ['solo', 'friends', 'couple'],
                 specialFacilities: ['Forest trail'],
                 contactNumber: null,
                 socialMedia: {}
@@ -113,7 +136,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '4–5 hours',
-                vibe: ['trekking', 'mountain'],
+                vibe: ['mountain', 'nature', 'thrill'],
+                suitableFor: ['solo', 'friends', 'couple', 'office'],
                 specialFacilities: ['Nature reserve'],
                 contactNumber: null,
                 socialMedia: {}
@@ -132,7 +156,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2–3 hours',
-                vibe: ['lakeside', 'viewpoint'],
+                vibe: ['chill', 'photo', 'romantic'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'elderly'],
                 specialFacilities: ['Boat rental'],
                 contactNumber: null,
                 socialMedia: {}
@@ -149,7 +174,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '1 hour',
-                vibe: ['mountain', 'viewpoint'],
+                vibe: ['thrill', 'photo', 'mountain'],
+                suitableFor: ['solo', 'couple', 'friends'],
                 specialFacilities: ['Certified pilots'],
                 contactNumber: null,
                 socialMedia: {}
@@ -166,7 +192,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2 hours',
-                vibe: ['spiritual', 'viewpoint'],
+                vibe: ['spiritual', 'photo', 'wellness'],
+                suitableFor: ['solo', 'couple', 'family', 'school', 'elderly'],
                 specialFacilities: ['Hilltop view'],
                 contactNumber: null,
                 socialMedia: {}
@@ -183,7 +210,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '3 hours',
-                vibe: ['lakeside', 'viewpoint'],
+                vibe: ['chill', 'photo', 'wellness', 'romantic'],
+                suitableFor: ['solo', 'couple', 'romantic', 'elderly'],
                 specialFacilities: ['Quiet lake'],
                 contactNumber: null,
                 socialMedia: {}
@@ -200,7 +228,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '1–2 hours',
-                vibe: ['mountain'],
+                vibe: ['nature', 'offbeat', 'budget'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school'],
                 specialFacilities: ['Guided cave walk'],
                 contactNumber: null,
                 socialMedia: {}
@@ -219,7 +248,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2–3 hours',
-                vibe: ['heritage', 'spiritual'],
+                vibe: ['culture', 'spiritual', 'photo'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school', 'elderly'],
                 specialFacilities: ['Ancient palace complex'],
                 contactNumber: null,
                 socialMedia: {}
@@ -236,7 +266,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '1–2 hours',
-                vibe: ['viewpoint', 'mountain'],
+                vibe: ['photo', 'mountain', 'romantic'],
+                suitableFor: ['solo', 'couple', 'friends'],
                 specialFacilities: ['Sunrise panorama'],
                 contactNumber: null,
                 socialMedia: {}
@@ -255,7 +286,8 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2–3 hours',
-                vibe: ['heritage', 'spiritual'],
+                vibe: ['culture', 'spiritual', 'photo'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school', 'elderly', 'accessibility'],
                 specialFacilities: ['Museum access'],
                 contactNumber: null,
                 socialMedia: {}
@@ -272,13 +304,12 @@ async function seed() {
                 openingHours: defaultHours,
                 isActive: true,
                 typicalTimeSpent: '2 hours',
-                vibe: ['foodie'],
+                vibe: ['foodie', 'culture', 'budget'],
+                suitableFor: ['solo', 'couple', 'family', 'friends', 'school', 'large_group'],
                 specialFacilities: ['Traditional cuisine'],
                 contactNumber: null,
                 socialMedia: {}
             }
-
-
         ];
 
         const updatedPlaces = [];
@@ -296,6 +327,9 @@ async function seed() {
 
         console.log("💾 Saving places...");
         await Place.insertMany(updatedPlaces);
+
+        console.log("💾 Saving vibes...");
+        await Vibe.insertMany(vibesData);
 
         console.log("✅ Seeding complete!");
         process.exit();

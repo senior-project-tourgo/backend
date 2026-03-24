@@ -62,11 +62,13 @@ const Place = require("../models/place");
  */
 router.post("/", async (req, res) => {
   try {
-    const { area, vibes, numberOfPlaces } = req.body;
+    const { area, vibes, numberOfPlaces, groupType } = req.body;
 
     console.log("Vibes received:", vibes);
     console.log("Area chosen", area);
     console.log("Number of places", numberOfPlaces);
+    console.log("Group type:", groupType);
+
     // Step 1: filter by area & active
     const places = await Place.find({
       "location.area": area,
@@ -82,9 +84,17 @@ router.post("/", async (req, res) => {
         const matchCount = place.vibe.filter(v =>
           vibes.includes(v)
         ).length;
-
         score += matchCount * 3;
       }
+
+      // group type matching — bonus if place explicitly supports this group type
+      // places with empty suitableFor are not penalised (backwards compat)
+      if (groupType && place.suitableFor && place.suitableFor.length > 0) {
+        if (place.suitableFor.includes(groupType)) {
+          score += 2;
+        }
+      }
+
       // rating boost
       score += (place.averageRating || 0);
 

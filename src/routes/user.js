@@ -84,6 +84,39 @@ router.get('/saved-places', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/user/stamps
+ * Returns the user's stamp card — each visited place with its visit count,
+ * sorted by visitCount descending.
+ */
+router.get('/stamps', authenticate, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('stamps');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const sorted = [...user.stamps].sort((a, b) => b.visitCount - a.visitCount);
+        const placeIds = sorted.map(s => s.placeId);
+        const places = await Place.find({ placeId: { $in: placeIds } }).select('placeId placeName image');
+
+        const placeMap = Object.fromEntries(places.map(p => [p.placeId, p]));
+
+        const result = sorted
+            .filter(s => placeMap[s.placeId])
+            .map(s => ({
+                placeId: s.placeId,
+                placeName: placeMap[s.placeId].placeName,
+                image: placeMap[s.placeId].image,
+                visitCount: s.visitCount,
+                lastVisitedAt: s.lastVisitedAt
+            }));
+
+        res.json(result);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Failed to fetch stamp card' });
+    }
+});
+
+/**
  * GET /api/user/saved-promotions
  * Returns full Promotion objects for the user's saved promotions.
  */

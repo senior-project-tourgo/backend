@@ -34,6 +34,7 @@ const placeSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     typicalTimeSpent: String,
     vibe: [String],
+    suitableFor: { type: [String], default: [] },
     specialFacilities: [String],
     contactNumber: String,
     socialMedia: {
