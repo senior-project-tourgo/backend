@@ -13,6 +13,7 @@ const userRoutes = require("./routes/user");
 const promotionRoutes = require("./routes/promotions");
 const rewardRoutes = require("./routes/rewards");
 const directionsRoutes = require("./routes/directions");
+const geocodeRoutes = require("./routes/geocode");
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/directions", directionsRoutes);
+app.use("/api/geocode", geocodeRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
