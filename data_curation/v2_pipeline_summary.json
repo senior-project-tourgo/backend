@@ -1,0 +1,127 @@
+{
+  "pipeline": "TourDo Unified Pipeline v2",
+  "timestamp": "2026-03-26 13:44:32",
+  "stats": {
+    "loaded": {
+      "reddit": 16216,
+      "wikivoyage": 1282,
+      "serpapi": 4201
+    },
+    "total_loaded": 21699,
+    "after_normalize": 21699,
+    "after_validate": 20886,
+    "rejected": "813",
+    "after_clean": 20886,
+    "dedup_groups": 14947,
+    "duplicates_found": 5939,
+    "after_merge": 14947,
+    "after_enrich": 14947
+  },
+  "output": {
+    "total_places": 14508,
+    "with_coordinates": 5425,
+    "with_description": 14508,
+    "with_rating": 3750,
+    "with_photos": 3945,
+    "with_hours": 2234,
+    "with_vibes": 10878,
+    "with_suitable_for": 14508
+  },
+  "source_breakdown": {
+    "reddit": 10152,
+    "serpapi": 4056,
+    "wikivoyage": 634
+  },
+  "type_distribution": {
+    "other": 6115,
+    "lake": 1904,
+    "trekking_route": 1189,
+    "restaurant": 790,
+    "temple": 783,
+    "mountain": 673,
+    "hotel": 600,
+    "activity": 450,
+    "market": 386,
+    "cafe": 255,
+    "national_park": 226,
+    "bar": 198,
+    "garden": 142,
+    "monastery": 135,
+    "historical_site": 106,
+    "guesthouse": 98,
+    "waterfall": 97,
+    "hostel": 86,
+    "museum": 86,
+    "viewpoint": 55
+  },
+  "quality_tiers": {
+    "unverified": 8658,
+    "silver": 3147,
+    "bronze": 2364,
+    "gold": 339
+  },
+  "avg_quality_score": 43.5,
+  "avg_confidence_score": 30.5,
+  "fill_rate_comparison": {
+    "google_rating": {
+      "before": 17.9,
+      "after": 25.8,
+      "delta": 8.0
+    },
+    "google_review_count": {
+      "before": 19.4,
+      "after": 28.0,
+      "delta": 8.6
+    },
+    "description_long": {
+      "before": 80.6,
+      "after": 98.8,
+      "delta": 18.2
+    },
+    "opening_hours_raw": {
+      "before": 10.9,
+      "after": 15.4,
+      "delta": 4.5
+    },
+    "schema_tags": {
+      "before": 23.6,
+      "after": 30.3,
+      "delta": 6.7
+    },
+    "reddit_sentiment_score": {
+      "before": 74.7,
+      "after": 70.0,
+      "delta": -4.8
+    },
+    "reddit_mention_count": {
+      "before": 74.7,
+      "after": 70.0,
+      "delta": -4.8
+    },
+    "vibe_tags": {
+      "before": 0.0,
+      "after": 75.0,
+      "delta": 75.0
+    },
+    "suitable_for": {
+      "before": 0.0,
+      "after": 100.0,
+      "delta": 100.0
+    },
+    "budget_level": {
+      "before": 11.9,
+      "after": 64.2,
+      "delta": 52.3
+    },
+    "difficulty_level": {
+      "before": 8.5,
+      "after": 33.2,
+      "delta": 24.7
+    },
+    "best_season": {
+      "before": 20.5,
+      "after": 17.1,
+      "delta": -3.4
+    }
+  }
+}

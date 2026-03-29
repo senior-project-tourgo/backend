@@ -1,0 +1,129 @@
+{
+  "pipeline": "TourDo Data Augmentation",
+  "total_places": 7184,
+  "fill_rate_comparison": {
+    "rating": {
+      "before_pct": 0.0,
+      "after_pct": 50.2,
+      "delta_pct": 50.2
+    },
+    "review_count": {
+      "before_pct": 0.0,
+      "after_pct": 54.2,
+      "delta_pct": 54.2
+    },
+    "hours": {
+      "before_pct": 0.0,
+      "after_pct": 30.1,
+      "delta_pct": 30.1
+    },
+    "price_level": {
+      "before_pct": 11.5,
+      "after_pct": 11.5,
+      "delta_pct": 0.0
+    },
+    "phone": {
+      "before_pct": 35.4,
+      "after_pct": 35.6,
+      "delta_pct": 0.2
+    },
+    "website": {
+      "before_pct": 21.7,
+      "after_pct": 21.7,
+      "delta_pct": 0.0
+    },
+    "description": {
+      "before_pct": 0.0,
+      "after_pct": 100.0,
+      "delta_pct": 100.0
+    },
+    "vibe_tags": {
+      "before_pct": 60.5,
+      "after_pct": 97.4,
+      "delta_pct": 36.9
+    },
+    "suitable_for": {
+      "before_pct": 0.0,
+      "after_pct": 100.0,
+      "delta_pct": 100.0
+    },
+    "budget_level": {
+      "before_pct": 81.3,
+      "after_pct": 81.3,
+      "delta_pct": 0.0
+    },
+    "best_season": {
+      "before_pct": 13.9,
+      "after_pct": 13.9,
+      "delta_pct": 0.0
+    },
+    "difficulty": {
+      "before_pct": 19.2,
+      "after_pct": 19.2,
+      "delta_pct": 0.0
+    }
+  },
+  "quality_tiers": {
+    "before": {
+      "unverified": 3254,
+      "bronze": 2884,
+      "silver": 1046
+    },
+    "after": {
+      "silver": 3119,
+      "unverified": 2399,
+      "bronze": 1439,
+      "gold": 227
+    }
+  },
+  "avg_quality_score": {
+    "before": 43.1,
+    "after": 54.7
+  },
+  "vibe_distribution": {
+    "budget": 4525,
+    "nature": 3930,
+    "foodie": 2447,
+    "adventure": 2401,
+    "cultural": 2390,
+    "scenic": 1759,
+    "spiritual": 1365,
+    "offbeat": 1033,
+    "photography-worthy": 971,
+    "chill": 846,
+    "peaceful": 742,
+    "historical": 741,
+    "luxury": 603,
+    "social": 579,
+    "party": 532,
+    "meditative": 502,
+    "lively": 492,
+    "premium": 471,
+    "wilderness": 436,
+    "thrill": 247,
+    "epic": 209,
+    "hidden-gem": 187,
+    "sacred": 71,
+    "backpacker": 53,
+    "relaxing": 45,
+    "romantic": 14,
+    "intimate": 5
+  },
+  "suitable_for_distribution": {
+    "solo": 7181,
+    "couple": 6896,
+    "friends": 6683,
+    "family": 4649,
+    "elderly": 3458,
+    "first-timer": 2749,
+    "kids": 1378,
+    "experienced": 392,
+    "disabled": 295,
+    "large-group": 134
+  },
+  "places_with_vibes": {
+    "before": 4343,
+    "after": 6998
+  },
+  "places_with_suitable_for": 7184
+}

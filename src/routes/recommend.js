@@ -1,305 +1,315 @@
+/**
+ * STEP 4 — routes/recommend.js  (drop-in replacement)
+ * =====================================================
+ * Improvements over the original:
+ *
+ *  1. Two-tier vibe system
+ *     Broad vibes (budget, nature, scenic, foodie) and sparse vibes
+ *     (romantic, intimate, backpacker, relaxing) never hard-filter —
+ *     they only add score. This prevents 0-result itineraries.
+ *
+ *  2. Quality-weighted scoring
+ *     Every score is multiplied by qualityTier (gold=1.15x … unverified=0.6x).
+ *     Unverified Reddit-only places can still appear but rank lower.
+ *
+ *  3. Review volume signal
+ *     log10(reviewCount) adds up to +2 pts. 40k reviews beats 40 reviews
+ *     without dominating the vibe match signal.
+ *
+ *  4. Sentiment signal
+ *     Reddit sentimentScore (-1 → +1) adds up to ±1.2 pts.
+ *
+ *  5. Season bonus
+ *     If tripDate falls in a place's bestSeason, +0.8 pts.
+ *
+ *  6. UNESCO bonus
+ *     isUnescoSite adds +1.5 pts (iconic first-timer highlights).
+ *
+ *  7. Source trust bonus
+ *     Places verified by 2–3 sources score slightly higher than single-source.
+ *
+ *  8. Difficulty penalty
+ *     family/elderly groups get a -3 penalty for challenging/hard/extreme places.
+ *
+ *  9. budget/luxury price cross-signal
+ *     Picking "budget" vibe also boosts priceLevel:low places even if the
+ *     vibe tag is missing. Same for "luxury".
+ *
+ * 10. hoursUnconfirmed flag passed through to frontend.
+ */
+
 const express = require("express");
 const router = express.Router();
 const Place = require("../models/place");
 const UserVibe = require("../models/userVibe");
 const { authenticate } = require("../middleware/auth.middleware");
 
-/**
- * Haversine distance between two lat/lng points, returns km.
- */
-function haversineDistance(lat1, lng1, lat2, lng2) {
+// ── Vibe tiers ────────────────────────────────────────────────────────────────
+//
+// SOFT_ONLY: never used as a hard filter, only contribute to score.
+// Reason: broad (budget=63%, nature=55%) or sparse (<55 places).
+
+const SOFT_ONLY_VIBES = new Set([
+  "budget", "nature", "scenic", "foodie",   // too broad
+  "romantic", "intimate", "backpacker",      // too sparse
+  "relaxing",                                // 45 places, near-dup of chill
+]);
+
+// nature+scenic are the same population (100% overlap) — expand automatically
+function expandVibes(vibes) {
+  const expanded = [...vibes];
+  if (vibes.includes("nature") && !expanded.includes("scenic")) expanded.push("scenic");
+  if (vibes.includes("scenic") && !expanded.includes("nature")) expanded.push("nature");
+  return expanded;
+}
+
+// ── Quality multiplier ────────────────────────────────────────────────────────
+
+const QUALITY_MULT = { gold: 1.15, silver: 1.0, bronze: 0.8, unverified: 0.6 };
+
+// ── Season helper ─────────────────────────────────────────────────────────────
+
+function getSeason(dateStr) {
+  if (!dateStr) return null;
+  const m = new Date(dateStr).getMonth() + 1;
+  if ([3, 4, 5].includes(m)) return "spring";
+  if ([6, 7, 8].includes(m)) return "monsoon";
+  if ([9, 10, 11].includes(m)) return "autumn";
+  return "winter";
+}
+
+// ── Distance helpers ──────────────────────────────────────────────────────────
+
+function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Compute dynamic search radius (km) based on transport mode, pace, and
- * how many places the user wants to visit.
- *
- * Base radii (km) reflect realistic travel ranges in Nepal:
- *   walking  →  2 km  (Thamel/lakeside stroll)
- *   cycling  →  8 km  (outer neighbourhood)
- *   motorbike → 20 km (cross-valley)
- *   car      → 35 km  (regional)
- *
- * Pace multiplier: relaxed trips stay compact, packed trips cast wider.
- * Place-count factor: +5% per place above 5, −5% per place below 5.
- */
-const BASE_RADIUS_KM = {
-  walking: 2,
-  cycling: 8,
-  motorbike: 20,
-  car: 35
-};
+const BASE_RADIUS_KM = { walking: 2, cycling: 8, motorbike: 20, car: 35 };
+const PACE_MULT = { relaxed: 0.7, balanced: 1.0, packed: 1.4 };
 
-const PACE_MULTIPLIER = {
-  relaxed: 0.7,
-  balanced: 1.0,
-  packed: 1.4
-};
+function computeRadius(mode, pace, nPlaces, startTime, endTime) {
+  const base = BASE_RADIUS_KM[mode] ?? BASE_RADIUS_KM.car;
+  const paceMult = PACE_MULT[pace] ?? 1.0;
+  const placeFact = Math.max(1 + (nPlaces - 5) * 0.05, 0.5);
 
-/**
- * Compute how many places fit in the user's time window.
- * Falls back to pace-based defaults when times are missing.
- * Clamped to 2–8.
- */
-const AVG_VISIT_MINS = { relaxed: 90, balanced: 60, packed: 40 };
-const TRAVEL_BUFFER_MINS = { walking: 20, cycling: 15, motorbike: 10, car: 10 };
-const PACE_FALLBACK_PLACES = { relaxed: 3, balanced: 5, packed: 7 };
-
-function computeNumberOfPlaces(startTime, endTime, pace, transportMode) {
-  if (!startTime || !endTime) {
-    return PACE_FALLBACK_PLACES[pace] ?? 5;
-  }
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
-  const availableMinutes = (eh * 60 + em) - (sh * 60 + sm);
-  if (availableMinutes <= 0) return PACE_FALLBACK_PLACES[pace] ?? 5;
-
-  const visit = AVG_VISIT_MINS[pace] ?? 60;
-  const buffer = TRAVEL_BUFFER_MINS[transportMode] ?? 10;
-  const n = Math.floor(availableMinutes / (visit + buffer));
-  return Math.max(2, Math.min(8, n));
-}
-
-function computeRadius(transportMode, pace, numberOfPlaces, startTime, endTime) {
-  const base = BASE_RADIUS_KM[transportMode] ?? BASE_RADIUS_KM.car;
-  const paceMult = PACE_MULTIPLIER[pace] ?? 1.0;
-  const placeFactor = 1 + (numberOfPlaces - 5) * 0.05;
-
-  // Time-window multiplier: shorter windows compress the radius
   let timeMult = 1.0;
   if (startTime && endTime) {
     const [sh, sm] = startTime.split(":").map(Number);
     const [eh, em] = endTime.split(":").map(Number);
-    const windowHours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
-    timeMult = Math.max(0.5, Math.min(1.3, windowHours / 8));
+    const hours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+    timeMult = Math.max(0.5, Math.min(1.3, hours / 8));
   }
-
-  return base * paceMult * Math.max(placeFactor, 0.5) * timeMult;
+  return base * paceMult * placeFact * timeMult;
 }
 
-/**
- * Check if a place is open during any part of the user's time window
- * on the given trip date.
- */
-const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+// ── numberOfPlaces from time window ──────────────────────────────────────────
 
-function isOpenDuringWindow(openingHours, tripDate, startTime, endTime) {
-  if (!openingHours || !tripDate || !startTime || !endTime) return true; // no data → keep
+const AVG_VISIT = { relaxed: 90, balanced: 60, packed: 40 };
+const TRAVEL_BUF = { walking: 20, cycling: 15, motorbike: 10, car: 10 };
+const PACE_DEFAULT = { relaxed: 3, balanced: 5, packed: 7 };
 
-  const date = new Date(tripDate);
-  const dayKey = DAY_NAMES[date.getDay()];
-  const slots = openingHours[dayKey];
-  if (!slots || slots.length === 0) return false; // no hours listed for that day → closed
-
+function computeNumberOfPlaces(startTime, endTime, pace, mode) {
+  if (!startTime || !endTime) return PACE_DEFAULT[pace] ?? 5;
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
-  const userOpen = sh * 60 + sm;
-  const userClose = eh * 60 + em;
+  const avail = (eh * 60 + em) - (sh * 60 + sm);
+  if (avail <= 0) return PACE_DEFAULT[pace] ?? 5;
+  const visit = AVG_VISIT[pace] ?? 60;
+  const buffer = TRAVEL_BUF[mode] ?? 10;
+  return Math.max(2, Math.min(8, Math.floor(avail / (visit + buffer))));
+}
 
+// ── Hours filter ──────────────────────────────────────────────────────────────
+
+const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+function toMins(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function slotsOverlap(slots, userOpen, userClose) {
   for (const { open, close } of slots) {
-    if (!open || !close) continue;
-    const [oh, om] = open.split(":").map(Number);
-    const [ch, cm] = close.split(":").map(Number);
-    let placeOpen = oh * 60 + om;
-    let placeClose = ch * 60 + cm;
-
-    // Overnight slot (e.g. 18:00–02:00) → treat close as next-day minutes
-    if (placeClose <= placeOpen) placeClose += 24 * 60;
-
-    // Overlap check: place is open during at least part of the user's window
-    if (placeOpen < userClose && placeClose > userOpen) return true;
+    let pOpen = toMins(open);
+    let pClose = toMins(close);
+    if (pOpen == null || pClose == null) continue;
+    if (pClose <= pOpen) pClose += 24 * 60;          // overnight slot
+    if (pOpen < userClose && pClose > userOpen) return true;
   }
   return false;
 }
 
-/**
- * @swagger
- * /api/recommend:
- *   post:
- *     summary: Get place recommendations
- *     description: Get recommended places based on area, vibes, and number of places
- *     tags:
- *       - Recommendations
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - area
- *               - numberOfPlaces
- *             properties:
- *               area:
- *                 type: string
- *                 example: Paris
- *               vibes:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: List of vibes/tags to match places
- *                 example: ['historic', 'romantic']
- *               numberOfPlaces:
- *                 type: integer
- *                 example: 5
- *     responses:
- *       200:
- *         description: Recommended places with average budget level
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 recommendedPlaces:
- *                   type: array
- *                   items:
- *                     allOf:
- *                       - $ref: '#/components/schemas/Place'
- *                       - type: object
- *                         properties:
- *                           score:
- *                             type: number
- *                             example: 15.5
- *                 averageBudgetLevel:
- *                   type: string
- *                   example: "2.3"
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+function checkHours(place, tripDate, startTime, endTime) {
+  if (!tripDate || !startTime || !endTime)
+    return { passes: true, hoursUnconfirmed: false };
+
+  const conf = place.hoursConfidence ?? "none";
+  if (conf === "none") return { passes: true, hoursUnconfirmed: true };
+
+  const dayKey = DAY_NAMES[new Date(tripDate).getDay()];
+  const slots = place.openingHours?.[dayKey] ?? [];
+  const userOpen = toMins(startTime);
+  const userClose = toMins(endTime);
+
+  if (conf === "full") {
+    if (slots.length === 0) return { passes: false, hoursUnconfirmed: false };
+    return { passes: slotsOverlap(slots, userOpen, userClose), hoursUnconfirmed: false };
+  }
+
+  // partial: filter if slots exist and clearly don't overlap, flag either way
+  if (slots.length === 0) return { passes: true, hoursUnconfirmed: true };
+  return { passes: slotsOverlap(slots, userOpen, userClose), hoursUnconfirmed: true };
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 router.post("/", authenticate, async (req, res) => {
   try {
-    const { area, vibes, groupType, startLat, startLng, transportMode, pace, startTime, endTime, tripDate } = req.body;
+    const {
+      area, vibes = [], groupType,
+      startLat, startLng, transportMode, pace,
+      startTime, endTime, tripDate,
+    } = req.body;
 
-    console.log("Vibes received:", vibes);
-    console.log("Area chosen", area);
-    console.log("Group type:", groupType);
-    console.log("Transport mode:", transportMode, "| Pace:", pace);
-    console.log("Starting point:", startLat, startLng);
-    console.log("Time window:", startTime, "–", endTime, "| Trip date:", tripDate);
+    console.log({ area, vibes, groupType, transportMode, pace, startTime, endTime, tripDate });
 
-    // ── Compute numberOfPlaces from time budget ──
+    // ── Derived config ─────────────────────────────────────────────────────
+    const expandedVibes = expandVibes(vibes);
+    const hardVibes = expandedVibes.filter(v => !SOFT_ONLY_VIBES.has(v));
+    const softVibes = expandedVibes.filter(v => SOFT_ONLY_VIBES.has(v));
+    const season = getSeason(tripDate);
     const numberOfPlaces = computeNumberOfPlaces(startTime, endTime, pace ?? "balanced", transportMode);
-    console.log("Computed numberOfPlaces:", numberOfPlaces);
 
-    // Step 1: filter by area & active
-    let places = await Place.find({
-      "location.area": area,
-      isActive: true
-    });
+    console.log({ hardVibes, softVibes, season, numberOfPlaces });
 
-    // Step 1b: hard vibe filter — drop places with zero vibe matches
-    if (vibes && vibes.length > 0) {
-      places = places.filter(place => {
-        if (!place.vibe || place.vibe.length === 0) return false;
-        return place.vibe.some(v => vibes.includes(v));
-      });
-      console.log(`Places after vibe filter: ${places.length}`);
-    }
+    // ── Step 1: area + active ──────────────────────────────────────────────
+    let places = await Place.find({ "location.area": area, isActive: true });
+    console.log(`After area filter: ${places.length}`);
 
-    // Step 1c: proximity filter — only when a starting point is provided
-    const hasStartingPoint =
-      startLat != null && startLng != null &&
-      Number.isFinite(Number(startLat)) && Number.isFinite(Number(startLng));
-
-    if (hasStartingPoint && transportMode) {
-      const radius = computeRadius(
-        transportMode,
-        pace ?? "balanced",
-        numberOfPlaces,
-        startTime,
-        endTime
+    // ── Step 2: hard vibe filter (only for non-broad vibes) ───────────────
+    if (hardVibes.length > 0) {
+      places = places.filter(p =>
+        p.vibe?.some(v => hardVibes.includes(v))
       );
-      console.log(`Proximity radius: ${radius.toFixed(2)} km`);
-
-      places = places.filter(place => {
-        const lat = place.location?.lat;
-        const lng = place.location?.lng;
-        if (lat == null || lng == null) return true;
-        const dist = haversineDistance(Number(startLat), Number(startLng), lat, lng);
-        return dist <= radius;
-      });
-
-      console.log(`Places after proximity filter: ${places.length}`);
+      console.log(`After hard vibe filter: ${places.length}`);
     }
 
-    // Step 1d: opening hours filter — drop places closed during the time window
-    places = places.filter(place =>
-      isOpenDuringWindow(place.openingHours, tripDate, startTime, endTime)
-    );
-    console.log(`Places after opening-hours filter: ${places.length}`);
+    // ── Step 3: proximity filter ───────────────────────────────────────────
+    const hasStart = startLat != null && startLng != null
+      && isFinite(+startLat) && isFinite(+startLng);
 
-    // Step 2: load this user's vibe affinity scores (vibeId → score)
+    if (hasStart && transportMode) {
+      const radius = computeRadius(transportMode, pace ?? "balanced", numberOfPlaces, startTime, endTime);
+      console.log(`Radius: ${radius.toFixed(2)} km`);
+      places = places.filter(p => {
+        if (p.location?.lat == null || p.location?.lng == null) return true;
+        return haversine(+startLat, +startLng, p.location.lat, p.location.lng) <= radius;
+      });
+      console.log(`After proximity filter: ${places.length}`);
+    }
+
+    // ── Step 4: opening hours filter ──────────────────────────────────────
+    const hoursChecked = places.map(p => ({
+      place: p,
+      ...checkHours(p, tripDate, startTime, endTime),
+    }));
+    places = hoursChecked.filter(r => r.passes);
+    console.log(`After hours filter: ${places.length}`);
+
+    // ── Step 5: user vibe affinity ────────────────────────────────────────
     const userVibes = await UserVibe.find({ userId: req.user._id });
     const vibeAffinity = {};
-    for (const uv of userVibes) {
-      vibeAffinity[uv.vibeId] = uv.score;
-    }
-
+    for (const uv of userVibes) vibeAffinity[uv.vibeId] = uv.score;
     const maxAffinity = Math.max(1, ...Object.values(vibeAffinity));
 
-    // Step 3: scoring
-    const scored = places.map(place => {
+    // ── Step 6: scoring ────────────────────────────────────────────────────
+    const scored = places.map(({ place, hoursUnconfirmed }) => {
       let score = 0;
 
-      if (place.vibe) {
-        if (vibes) {
-          const matchCount = place.vibe.filter(v => vibes.includes(v)).length;
-          score += matchCount * 3;
-        }
-
-        for (const v of place.vibe) {
-          if (vibeAffinity[v]) {
-            score += (vibeAffinity[v] / maxAffinity) * 1.5;
-          }
-        }
+      // Hard vibe match — strongest signal
+      if (hardVibes.length > 0 && place.vibe?.length) {
+        const matches = place.vibe.filter(v => hardVibes.includes(v)).length;
+        score += matches * 3;
       }
 
-      if (groupType && place.suitableFor && place.suitableFor.length > 0) {
-        if (place.suitableFor.includes(groupType)) {
-          score += 2;
-        }
+      // Soft vibe match — nudge only
+      if (softVibes.length > 0 && place.vibe?.length) {
+        const matches = place.vibe.filter(v => softVibes.includes(v)).length;
+        score += matches * 0.8;
       }
 
-      // Capped rating boost: normalised to −1.5 … +1.5
-      // A 4.8 → +1.35, a 3.0 → 0, below 3 → slight penalty
-      const rating = place.averageRating || 0;
+      // Budget/luxury → cross-signal with priceLevel
+      if (vibes.includes("budget")) {
+        if (place.priceLevel === "low") score += 1.5;
+        if (place.priceLevel === "high") score -= 1.0;
+      }
+      if (vibes.includes("luxury")) {
+        if (place.priceLevel === "high") score += 1.5;
+        if (place.priceLevel === "low") score -= 1.0;
+      }
+
+      // User affinity (personalisation)
+      for (const v of (place.vibe ?? [])) {
+        if (vibeAffinity[v]) score += (vibeAffinity[v] / maxAffinity) * 1.5;
+      }
+
+      // Group suitability — soft bonus
+      if (groupType && place.suitableFor?.includes(groupType)) score += 1.5;
+
+      // Difficulty penalty for vulnerable groups
+      if (["family", "elderly"].includes(groupType) &&
+        ["challenging", "hard", "extreme"].includes(place.difficulty)) {
+        score -= 3;
+      }
+
+      // Rating boost (–1.5 to +1.5, centred on 3 stars)
+      const rating = place.averageRating ?? 0;
       score += ((rating - 3) / 2) * 1.5;
 
-      return { ...place.toObject(), score };
+      // Review volume — log-scaled, max +2
+      if (place.reviewCount > 0) {
+        score += Math.min(Math.log10(place.reviewCount) * 0.4, 2);
+      }
+
+      // Reddit sentiment (–1 → +1)
+      if (place.sentimentScore != null) score += place.sentimentScore * 1.2;
+
+      // UNESCO
+      if (place.isUnescoSite) score += 1.5;
+
+      // Season match
+      if (season && place.bestSeason?.includes(season)) score += 0.8;
+
+      // Cross-source trust
+      if (place.sourcesCount > 1) score += (place.sourcesCount - 1) * 0.3;
+
+      // Quality multiplier — applied last, gates everything above
+      score *= (QUALITY_MULT[place.qualityTier] ?? 0.8);
+
+      return { ...place.toObject(), score, hoursUnconfirmed };
     });
 
-    // Step 4: sort by score descending, take top N
+    // ── Step 7: sort + slice ───────────────────────────────────────────────
     scored.sort((a, b) => b.score - a.score);
+    console.log("Top 5:", scored.slice(0, 5).map(p => `${p.placeName}: ${p.score.toFixed(2)}`));
 
-    console.log("Scored places (top 10):", scored.slice(0, 10).map(p => `${p.placeName}: ${p.score.toFixed(2)}`));
     const recommended = scored.slice(0, numberOfPlaces);
 
-    // calculate average budget
+    // Average budget (for trip cost estimate)
     const budgetMap = { "$": 1, "$$": 2, "$$$": 3, "$$$$": 4 };
-
-    const avgBudget =
-      recommended.reduce(
-        (sum, p) => sum + (budgetMap[p.priceRange] || 1),
-        0
-      ) / (recommended.length || 1);
+    const avgBudget = recommended.reduce((s, p) => s + (budgetMap[p.priceRange] || 1), 0)
+      / (recommended.length || 1);
 
     res.json({
       recommendedPlaces: recommended,
       averageBudgetLevel: avgBudget.toFixed(1),
-      numberOfPlaces
+      numberOfPlaces,
     });
 
   } catch (err) {
