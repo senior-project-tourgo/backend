@@ -41,6 +41,7 @@
 const express = require("express");
 const router = express.Router();
 const Place = require("../models/place");
+const Trip = require("../models/trip");
 const UserVibe = require("../models/userVibe");
 const { authenticate } = require("../middleware/auth.middleware");
 
@@ -315,6 +316,228 @@ router.post("/", authenticate, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Recommendation failed" });
+  }
+});
+
+// ── /home ─────────────────────────────────────────────────────────────────────
+// GET /api/recommend/home?vibe=all&page=0&limit=10
+// Returns personalised place feed + trip suggestions with reason strings.
+// Algorithm:
+//   1. Pull user's completed trips and extract vibes of visited places.
+//   2. Pick the most-visited vibes as the user's "taste profile".
+//   3. If a vibe filter is active, filter to that vibe; else use taste profile.
+//   4. Return paginated places (excluding already-visited ones) + trip suggestions.
+
+const REASON_TEMPLATES = [
+  name => `Because you visited ${name}, you may like`,
+  name => `Since you loved ${name}, you may enjoy`,
+  name => `Inspired by your visit to ${name}`,
+  name => `Fans of ${name} also love`,
+  name => `After ${name}, try`,
+];
+
+router.get("/home", authenticate, async (req, res) => {
+  try {
+    const { vibe = "all", page = "0", limit = "10" } = req.query;
+    const pageNum  = Math.max(0, parseInt(page,  10) || 0);
+    const limitNum = Math.min(30, Math.max(1, parseInt(limit, 10) || 10));
+    const userId = req.user._id;
+
+    // 1. Completed trips (most recent 15)
+    const completedTrips = await Trip.find({ userId, status: "completed" })
+      .sort({ completedAt: -1 })
+      .limit(15);
+
+    const visitedPlaceIds = [
+      ...new Set(completedTrips.flatMap(t => t.places.map(p => p.placeId)))
+    ];
+
+    // 2. Fetch visited place docs for vibe extraction
+    const visitedPlaces = visitedPlaceIds.length > 0
+      ? await Place.find({ placeId: { $in: visitedPlaceIds } }).lean()
+      : [];
+
+    // 3. Build vibe affinity map
+    const vibeCount = {};
+    for (const p of visitedPlaces) {
+      for (const v of (p.vibe || [])) {
+        vibeCount[v] = (vibeCount[v] || 0) + 1;
+      }
+    }
+    const topVibes = Object.entries(vibeCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([v]) => v);
+
+    // 4. Active vibe filter
+    let targetVibes = [];
+    if (vibe !== "all") {
+      targetVibes = [vibe];
+    } else if (topVibes.length > 0) {
+      targetVibes = topVibes.slice(0, 3);
+    }
+
+    // 5. Query places (exclude visited)
+    const vibeFilter = targetVibes.length > 0
+      ? { vibe: { $in: targetVibes } }
+      : {};
+
+    const places = await Place.find({
+      isActive: true,
+      placeId: { $nin: visitedPlaceIds },
+      ...vibeFilter,
+    })
+      .sort({ averageRating: -1, placeScore: -1 })
+      .skip(pageNum * limitNum)
+      .limit(limitNum)
+      .lean();
+
+    const hasMore = places.length === limitNum;
+
+    // 6. Trip suggestions — only on first page
+    let tripSuggestions = [];
+    if (pageNum === 0 && visitedPlaces.length > 0) {
+      // Build 2–3 grouped suggestions keyed on a dominant vibe
+      const usedVibes = new Set();
+      const suggestionVibes = topVibes.slice(0, 3);
+
+      for (const sv of suggestionVibes) {
+        if (tripSuggestions.length >= 3) break;
+        if (usedVibes.has(sv)) continue;
+        usedVibes.add(sv);
+
+        // Find a recent visited place with this vibe for the reason string
+        const anchorPlace = visitedPlaces.find(p => p.vibe?.includes(sv));
+        if (!anchorPlace) continue;
+
+        const template = REASON_TEMPLATES[tripSuggestions.length % REASON_TEMPLATES.length];
+        const reason = template(anchorPlace.placeName);
+
+        // Suggest 3–4 unvisited places with this vibe
+        const suggestedPlaces = await Place.find({
+          isActive: true,
+          placeId: { $nin: visitedPlaceIds },
+          vibe: sv,
+        })
+          .sort({ averageRating: -1 })
+          .limit(4)
+          .lean();
+
+        if (suggestedPlaces.length >= 2) {
+          tripSuggestions.push({ reason, vibe: sv, places: suggestedPlaces });
+        }
+      }
+    }
+
+    res.json({ places, tripSuggestions, topVibes, hasMore, page: pageNum });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Home recommendations failed" });
+  }
+});
+
+// ── /surprise ─────────────────────────────────────────────────────────────────
+// POST /api/recommend/surprise
+// Picks a random vibe combo + time window and returns a ready-to-go itinerary.
+
+const ALL_VIBE_IDS = [
+  "thrill","mountain","spiritual","culture","nature","foodie",
+  "chill","social","photo","budget","luxury","family",
+  "romantic","solo","offbeat","wellness",
+];
+
+const SURPRISE_TAGLINES = [
+  "Ready for the unexpected?",
+  "We picked something fresh for you!",
+  "Adventure awaits — trust us on this one.",
+  "Feeling spontaneous? Here you go!",
+  "Something new, just for you.",
+];
+
+router.post("/surprise", authenticate, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 1. Detect user's preferred area from recent trips
+    const recentTrips = await Trip.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const recentPlaceIds = recentTrips.flatMap(t => t.places.map(p => p.placeId));
+    const recentPlaces = recentPlaceIds.length > 0
+      ? await Place.find({ placeId: { $in: recentPlaceIds } }, { "location.area": 1 }).lean()
+      : [];
+
+    const areaCounts = {};
+    for (const p of recentPlaces) {
+      const a = p.location?.area;
+      if (a) areaCounts[a] = (areaCounts[a] || 0) + 1;
+    }
+    const AREAS = ["Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara"];
+    const area = Object.entries(areaCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+      || AREAS[Math.floor(Math.random() * AREAS.length)];
+
+    // 2. Random vibes (2–3, prefer vibes the user hasn't done much)
+    const visitedPlaceIds = [
+      ...new Set(recentTrips.flatMap(t => t.places.map(p => p.placeId)))
+    ];
+    const visitedDocs = visitedPlaceIds.length > 0
+      ? await Place.find({ placeId: { $in: visitedPlaceIds } }, { vibe: 1 }).lean()
+      : [];
+    const usedVibeSet = new Set(visitedDocs.flatMap(p => p.vibe || []));
+
+    const freshVibes = ALL_VIBE_IDS.filter(v => !usedVibeSet.has(v));
+    const vibePool = freshVibes.length >= 2 ? freshVibes : ALL_VIBE_IDS;
+    const shuffled = [...vibePool].sort(() => Math.random() - 0.5);
+    const vibes = shuffled.slice(0, 2 + Math.floor(Math.random() * 2));
+
+    // 3. Random time window (3–6 hours, starting 8am–2pm)
+    const startHour = 8 + Math.floor(Math.random() * 7);
+    const duration  = 3 + Math.floor(Math.random() * 4);
+    const endHour   = Math.min(startHour + duration, 23);
+    const startTime = `${String(startHour).padStart(2, "0")}:00`;
+    const endTime   = `${String(endHour).padStart(2, "0")}:00`;
+    const PACES = ["balanced", "relaxed", "packed"];
+    const pace  = PACES[Math.floor(Math.random() * PACES.length)];
+
+    // 4. Run scoring logic (reuse helpers)
+    const expandedVibes = expandVibes(vibes);
+    const hardVibes = expandedVibes.filter(v => !SOFT_ONLY_VIBES.has(v));
+    const softVibes = expandedVibes.filter(v =>  SOFT_ONLY_VIBES.has(v));
+    const numberOfPlaces = computeNumberOfPlaces(startTime, endTime, pace, "car");
+
+    let candidates = await Place.find({ "location.area": area, isActive: true }).lean();
+    if (hardVibes.length > 0) {
+      candidates = candidates.filter(p => p.vibe?.some(v => hardVibes.includes(v)));
+    }
+    // Fallback — if hard filter killed all results, relax it
+    if (candidates.length < 2) {
+      candidates = await Place.find({ "location.area": area, isActive: true }).lean();
+    }
+
+    const scored = candidates.map(p => {
+      let score = (p.averageRating || 0) * 0.6 + Math.random() * 2.5;
+      if (hardVibes.length > 0 && p.vibe?.some(v => hardVibes.includes(v))) score += 1.5;
+      if (softVibes.length > 0 && p.vibe?.some(v => softVibes.includes(v))) score += 0.5;
+      return { ...p, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const recommendedPlaces = scored.slice(0, numberOfPlaces);
+
+    const tagline = SURPRISE_TAGLINES[Math.floor(Math.random() * SURPRISE_TAGLINES.length)];
+
+    res.json({
+      recommendedPlaces,
+      vibes,
+      startTime,
+      endTime,
+      area,
+      pace,
+      tagline,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Surprise recommendation failed" });
   }
 });
 
