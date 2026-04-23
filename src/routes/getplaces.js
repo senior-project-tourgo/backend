@@ -78,7 +78,7 @@ router.get("/get-all-places", async (req, res) => {
 
 /**
  * @swagger
- * /api/get-places/{placeId}:
+ * /api/places/get-places/{placeId}:
  *   get:
  *     summary: Get a single place by placeId
  *     tags: [Places]
@@ -142,23 +142,71 @@ router.get("/search", async (req, res) => {
 
 /**
  * GET /api/places/static-map?lat=&lng=
- * Proxies a Google Static Maps image server-side so the API key stays secret.
+ * Proxies Google Static Maps API securely.
  */
 router.get("/static-map", async (req, res) => {
     const { lat, lng } = req.query;
     const GOOGLE_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
-    if (!GOOGLE_KEY) return res.status(503).end();
-    if (!lat || !lng) return res.status(400).json({ error: "lat and lng required" });
+    // 1. API key check
+    if (!GOOGLE_KEY) {
+        return res.status(503).json({ error: "Missing Google API key" });
+    }
+
+    // 2. Validate coordinates
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+        return res.status(400).json({ error: "Invalid lat/lng" });
+    }
 
     try {
-        const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&scale=2&markers=color:0xFF7D00|${lat},${lng}&key=${GOOGLE_KEY}`;
-        const response = await fetch(url);
-        res.set('Content-Type', response.headers.get('content-type') ?? 'image/png');
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
+        // 3. Build Google Static Map URL safely
+        const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
+
+        url.searchParams.set("center", `${latNum},${lngNum}`);
+        url.searchParams.set("zoom", "15");
+        url.searchParams.set("size", "600x300");
+        url.searchParams.set("scale", "2");
+        url.searchParams.set(
+            "markers",
+            `color:0xFF7D00|${latNum},${lngNum}`
+        );
+        url.searchParams.set("key", GOOGLE_KEY);
+
+        // 4. Fetch from Google
+        const response = await fetch(url.toString());
+
+        // 5. Handle Google API failure properly
+        if (!response.ok) {
+            const errorText = await response.text();
+
+            return res.status(response.status).json({
+                error: "Google Maps API error",
+                details: errorText
+            });
+        }
+
+        // 6. Set correct headers for React Native Image
+        res.setHeader(
+            "Content-Type",
+            response.headers.get("content-type") || "image/png"
+        );
+
+        // 7. Cache aggressively (important for mobile + cost)
+        res.setHeader("Cache-Control", "public, max-age=86400");
+
+        // 8. Send binary image
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return res.send(buffer);
+
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Static map error:", err);
+
+        return res.status(500).json({
+            error: "Failed to fetch static map"
+        });
     }
 });
 
